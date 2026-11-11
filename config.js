@@ -15,8 +15,9 @@ window.CONFIG = {
 
   // true — працює на демо-даних (без сервера).
   // false — усі запити йдуть на API_BASE (твій сервер на Cloudflare Workers).
-  MOCK: true,
-  API_BASE: "https://api.your-domain.com", // заміниш на адресу свого сервера
+  MOCK: false,
+  API_BASE: "https://triongift-api.khilchenko-kiril.workers.dev", // адреса сервера Cloudflare
+  POLL_SEC: 10, // як часто (секунд) застосунок питає сервер про нові події
 
   // Комісія маркетплейсу (%). Хто платить — обирає продавець: покупець / продавець / навпіл
   FEE_PERCENT: 3,
