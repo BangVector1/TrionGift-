@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!--
-  TrionGift v0.9 — увесь застосунок в одному файлі.
+  TrionGift v0.9.1 — увесь застосунок в одному файлі.
   Налаштування (бот, адреса сервера, комісія, таймери) — у файлі config.js поруч.
   Оновлення: завантаж новий index.html у репозиторій замість старого.
 -->
@@ -1172,7 +1172,8 @@ details.rule p { margin: 0 2px 12px; color: var(--text-2); font-size: 13px; }
 
   <div class="toast-wrap" id="toasts"></div>
 
-  <script src="config.js"></script> <!-- НАЛАШТУВАННЯ: окремий файл config.js -->
+  <!-- НАЛАШТУВАННЯ: окремий файл config.js (завантажується завжди свіжим, без кешу) -->
+  <script>document.write('<script src="config.js?v=' + Date.now() + '"><\/script>');</script>
   <script>/* ===== js/i18n.js ===== */
 /* =========================================================
    Мови: ru (основна), uk, en.
@@ -5654,7 +5655,7 @@ details.rule p { margin: 0 2px 12px; color: var(--text-2); font-size: 13px; }
         <button class="menu-item" data-action="open-user" data-username="${esc(C.SUPPORT_USERNAME)}">${UI.ei("support")} ${t("menu.support")} ${ICONS.chev}</button>
         <button class="menu-item" data-action="tab" data-tab="deals">${UI.ei("handshake")} ${t("menu.deals")} ${ICONS.chev}</button>
       </div>
-      <p class="small muted" style="text-align:center;margin-top:20px">TrionGift · v0.9 · ${C.MOCK ? t("footer.demo") : "live"}</p>`;
+      <p class="small muted" style="text-align:center;margin-top:20px">TrionGift · v0.9.1 · ${C.MOCK ? t("footer.demo") : "live"}</p>`;
 
     API.profile().then((p) => {
       const el = $("#profile-stats");
