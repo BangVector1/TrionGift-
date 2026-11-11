@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!--
-  TrionGift v0.8 — увесь застосунок в одному файлі.
+  TrionGift v0.9 — увесь застосунок в одному файлі.
   Налаштування (бот, адреса сервера, комісія, таймери) — у файлі config.js поруч.
   Оновлення: завантаж новий index.html у репозиторій замість старого.
 -->
@@ -1309,7 +1309,7 @@ details.rule p { margin: 0 2px 12px; color: var(--text-2); font-size: 13px; }
       "err.ownLot": "Нельзя купить собственный NFT", "err.dealNotFound": "Сделка не найдена",
       "err.alreadyPaid": "Сделка уже оплачена", "err.cantAccept": "Сейчас нельзя принять сделку",
       "err.acceptFirst": "Сначала примите сделку", "err.cantCancel": "Оплаченную сделку отменить нельзя — откройте спор",
-      "err.cantDispute": "Спор сейчас открыть нельзя", "err.unknown": "Неизвестное действие",
+      "err.cantDispute": "Спор сейчас открыть нельзя", "err.unknown": "Неизвестное действие", "err.network": "Нет связи с сервером. Проверьте интернет и попробуйте ещё раз.",
       "err.notInProfile": "Этого NFT нет в вашем профиле", "err.cantTransfer": "Этот NFT пока нельзя передать (ограничение Telegram)",
       "err.badPrice": "Некорректная цена", "err.lotInDeal": "По этому лоту идёт сделка",
       "err.pickNft": "Выберите NFT", "err.minPrice": "Минимальная цена — {v}",
@@ -1528,7 +1528,7 @@ details.rule p { margin: 0 2px 12px; color: var(--text-2); font-size: 13px; }
       "err.ownLot": "Не можна купити власний NFT", "err.dealNotFound": "Угоду не знайдено",
       "err.alreadyPaid": "Угода вже оплачена", "err.cantAccept": "Зараз не можна прийняти угоду",
       "err.acceptFirst": "Спершу прийміть угоду", "err.cantCancel": "Оплачену угоду скасувати не можна — відкрийте спір",
-      "err.cantDispute": "Спір зараз відкрити не можна", "err.unknown": "Невідома дія",
+      "err.cantDispute": "Спір зараз відкрити не можна", "err.unknown": "Невідома дія", "err.network": "Немає зв'язку із сервером. Перевірте інтернет і спробуйте ще раз.",
       "err.notInProfile": "Цього NFT немає у вашому профілі", "err.cantTransfer": "Цей NFT поки не можна передати (обмеження Telegram)",
       "err.badPrice": "Некоректна ціна", "err.lotInDeal": "По цьому лоту йде угода",
       "err.pickNft": "Оберіть NFT", "err.minPrice": "Мінімальна ціна — {v}",
@@ -1747,7 +1747,7 @@ details.rule p { margin: 0 2px 12px; color: var(--text-2); font-size: 13px; }
       "err.ownLot": "You can't buy your own NFT", "err.dealNotFound": "Deal not found",
       "err.alreadyPaid": "The deal is already paid", "err.cantAccept": "You can't accept this deal right now",
       "err.acceptFirst": "Accept the deal first", "err.cantCancel": "A paid deal can't be cancelled — open a dispute",
-      "err.cantDispute": "You can't open a dispute right now", "err.unknown": "Unknown action",
+      "err.cantDispute": "You can't open a dispute right now", "err.unknown": "Unknown action", "err.network": "Can't reach the server. Check your connection and try again.",
       "err.notInProfile": "This NFT isn't in your profile", "err.cantTransfer": "This NFT can't be transferred yet (Telegram limit)",
       "err.badPrice": "Invalid price", "err.lotInDeal": "There's an active deal on this lot",
       "err.pickNft": "Choose an NFT", "err.minPrice": "Minimum price is {v}",
@@ -3213,11 +3213,14 @@ details.rule p { margin: 0 2px 12px; color: var(--text-2); font-size: 13px; }
 
   /* ---------------- РЕАЛЬНИЙ БЕКЕНД ---------------- */
   async function request(method, path, body) {
-    const res = await fetch(C.API_BASE + path, {
-      method,
-      headers: { "Content-Type": "application/json", Authorization: "tma " + TG.initData, "Accept-Language": I18N.lang },
-      body: body ? JSON.stringify(body) : undefined,
-    });
+    let res;
+    try {
+      res = await fetch(C.API_BASE.replace(/\/+$/, "") + path, {
+        method,
+        headers: { "Content-Type": "application/json", Authorization: "tma " + TG.initData, "Accept-Language": I18N.lang },
+        body: body ? JSON.stringify(body) : undefined,
+      });
+    } catch (e) { throw new Error(t("err.network")); }
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.error || "Server error (" + res.status + ")");
     return data;
@@ -3248,6 +3251,7 @@ details.rule p { margin: 0 2px 12px; color: var(--text-2); font-size: 13px; }
     myListings: () => request("GET", "/me/listings"),
     profile: () => request("GET", "/me"),
     events: () => request("GET", "/me/events"),                        // нові події: перебили ставку, нова пропозиція…
+    poll: () => request("GET", "/me/poll"),                            // події + лічильники одним запитом (економить ліміт сервера)
     // Обміни
     createExchange: (data) => request("POST", "/exchanges", data),
     exchangeInvites: () => request("GET", "/exchanges/invites"),
@@ -4082,6 +4086,7 @@ details.rule p { margin: 0 2px 12px; color: var(--text-2); font-size: 13px; }
    ========================================================= */
 (function () {
   const C = window.CONFIG;
+  const SHEET_POLL_MS = C.MOCK ? 2000 : 5000; // як часто оновлювати відкриту угоду/аукціон
   const { esc, ICONS, price, nftArt, badge, timeAgo, countdown, toast, openSheet, setSheet, closeSheet, sheetOpen } = window.UI;
   const $ = (sel) => document.querySelector(sel);
   const nftName = (g) => g.collection + " #" + g.number;
@@ -4398,7 +4403,7 @@ details.rule p { margin: 0 2px 12px; color: var(--text-2); font-size: 13px; }
     sheet(`<div class="skeleton" style="aspect-ratio:1;max-width:290px;margin:0 auto"></div>`);
     let l;
     try { l = await API.listing(id); } catch (e) { closeSheet(); return toast(e.message, "err"); }
-    if (l.type === "auction") { state.sheetCtx = { kind: "auction", id }; renderAuctionSheet(l); sheetPoll = setInterval(refreshAuction, 2000); return; }
+    if (l.type === "auction") { state.sheetCtx = { kind: "auction", id }; renderAuctionSheet(l); sheetPoll = setInterval(refreshAuction, SHEET_POLL_MS); return; }
     if (l.type === "exchange") return renderExchangeSheet(l);
     renderFixedSheet(l);
   }
@@ -4699,7 +4704,7 @@ details.rule p { margin: 0 2px 12px; color: var(--text-2); font-size: 13px; }
     lastDealKey = "";
     await refreshDeal();
     stopPoll();
-    sheetPoll = setInterval(refreshDeal, 2000); // бекенд змінює статус сам (вебхук оплати, перевірка NFT, таймаути)
+    sheetPoll = setInterval(refreshDeal, SHEET_POLL_MS); // бекенд змінює статус сам (вебхук оплати, перевірка NFT, таймаути)
   }
 
   async function refreshDeal(force) {
@@ -4953,21 +4958,39 @@ details.rule p { margin: 0 2px 12px; color: var(--text-2); font-size: 13px; }
   }
 
   // Лічильники дій, що чекають користувача
+  function applyBadges(c) {
+    const n = (k) => Number(c[k]) || 0;
+    const nSwap = n("swaps") + n("invites");
+    const set = (sel, v) => { const el = $(sel); if (el) { el.hidden = !v; el.textContent = v; } };
+    set("#deals-badge", n("buyer") + n("seller") + n("offers") + n("bids") + nSwap);
+    set("#private-badge", n("incoming") + n("invites"));
+    set("#incoming-count", n("incoming") + n("invites"));
+    set("#segb-buyer", n("buyer")); set("#segb-seller", n("seller")); set("#segb-offers", n("offers")); set("#segb-bids", n("bids")); set("#segb-swaps", nSwap);
+  }
   async function refreshBadges() {
+    if (API.poll) return livePoll(); // сервер: лічильники й події одним запитом
     try {
       const [b, s, o, bids, swaps, invites] = await Promise.all([API.deals("buyer"), API.deals("seller"), API.offers(), API.myBids(), API.swaps(), API.exchangeInvites()]);
-      const nSwap = swaps.filter(swapNeedsMe).length + invites.length;
-      const nBuy = b.filter((d) => !d.private && d.status === "awaiting_payment").length;
-      const nSell = s.filter((d) => ["paid", "accepted"].includes(d.status)).length;
-      const nOff = o.incoming.filter((x) => x.status === "pending").length + o.outgoing.filter((x) => x.status === "countered").length;
-      const nBid = bids.filter((x) => x.state === "outbid").length;
-      const incoming = b.filter((d) => d.private && d.status === "awaiting_payment").length;
-      const set = (sel, n) => { const el = $(sel); if (el) { el.hidden = !n; el.textContent = n; } };
-      set("#deals-badge", nBuy + nSell + nOff + nBid + nSwap);
-      set("#private-badge", incoming + invites.length);
-      set("#incoming-count", incoming + invites.length);
-      set("#segb-buyer", nBuy); set("#segb-seller", nSell); set("#segb-offers", nOff); set("#segb-bids", nBid); set("#segb-swaps", nSwap);
+      applyBadges({
+        buyer: b.filter((d) => !d.private && d.status === "awaiting_payment").length,
+        seller: s.filter((d) => ["paid", "accepted"].includes(d.status)).length,
+        offers: o.incoming.filter((x) => x.status === "pending").length + o.outgoing.filter((x) => x.status === "countered").length,
+        bids: bids.filter((x) => x.state === "outbid").length,
+        swaps: swaps.filter(swapNeedsMe).length,
+        invites: invites.length,
+        incoming: b.filter((d) => d.private && d.status === "awaiting_payment").length,
+      });
     } catch (e) {}
+  }
+  let polling = false;
+  async function livePoll() {
+    if (document.hidden || polling || !TG.initData) return; // у фоні й поза Telegram не опитуємо
+    polling = true;
+    try {
+      const r = await API.poll();
+      applyBadges(r.badges || {});
+      handleEvents(r.events || [], true);
+    } catch (e) {} finally { polling = false; }
   }
 
   /* =============== ПОДІЇ (перебили ставку, нова пропозиція…) =============== */
@@ -4978,8 +5001,12 @@ details.rule p { margin: 0 2px 12px; color: var(--text-2); font-size: 13px; }
     exStarted: ["ev.exStarted", "ok", "handshake"], exStartedTopup: ["ev.exStartedTopup", "ok", "coin"], swapSafe: ["ev.swapSafe", "", "lock"], swapDone: ["ev.swapDone", "ok", "trophy"],
   };
   async function pollEvents() {
+    if (API.poll) return;
     let evs;
     try { evs = await API.events(); } catch (e) { return; }
+    handleEvents(evs);
+  }
+  function handleEvents(evs, live) {
     if (!evs || !evs.length) return;
     evs.forEach((ev) => {
       const [key, kind, icon] = EV[ev.type] || [];
@@ -4987,7 +5014,7 @@ details.rule p { margin: 0 2px 12px; color: var(--text-2); font-size: 13px; }
       toast(t(key, { nft: ev.nft, u: ev.u || "", sum: ev.sum != null ? sum(ev.sum, ev.currency) : "" }), kind, icon);
       if (ev.type === "won" || ev.type === "sold" || ev.type === "swapDone") UI.confetti();
     });
-    refreshBadges();
+    if (!live) refreshBadges();
     if (state.tab === "deals") loadDealsView();
     if (state.tab === "profile") loadMyListings();
     if (state.tab === "market" && state.market.mode === "auction") loadListings(true);
@@ -5419,7 +5446,7 @@ details.rule p { margin: 0 2px 12px; color: var(--text-2); font-size: 13px; }
     lastSwapKey = "";
     await refreshSwap();
     stopPoll();
-    sheetPoll = setInterval(refreshSwap, 2000);
+    sheetPoll = setInterval(refreshSwap, SHEET_POLL_MS);
   }
   async function refreshSwap(force) {
     const ctx = state.sheetCtx;
@@ -5627,7 +5654,7 @@ details.rule p { margin: 0 2px 12px; color: var(--text-2); font-size: 13px; }
         <button class="menu-item" data-action="open-user" data-username="${esc(C.SUPPORT_USERNAME)}">${UI.ei("support")} ${t("menu.support")} ${ICONS.chev}</button>
         <button class="menu-item" data-action="tab" data-tab="deals">${UI.ei("handshake")} ${t("menu.deals")} ${ICONS.chev}</button>
       </div>
-      <p class="small muted" style="text-align:center;margin-top:20px">TrionGift · v0.8 · ${C.MOCK ? t("footer.demo") : "live"}</p>`;
+      <p class="small muted" style="text-align:center;margin-top:20px">TrionGift · v0.9 · ${C.MOCK ? t("footer.demo") : "live"}</p>`;
 
     API.profile().then((p) => {
       const el = $("#profile-stats");
@@ -5845,8 +5872,13 @@ details.rule p { margin: 0 2px 12px; color: var(--text-2); font-size: 13px; }
   UI.particles();
   setTab("market");
   refreshBadges();
-  setInterval(refreshBadges, 15000);
-  setInterval(pollEvents, 3000);
+  if (C.MOCK) {
+    setInterval(refreshBadges, 15000);
+    setInterval(pollEvents, 3000);
+  } else {
+    setInterval(livePoll, (C.POLL_SEC || 10) * 1000);
+    document.addEventListener("visibilitychange", () => { if (!document.hidden) livePoll(); });
+  }
   // Живі таймери: аукціони, угоди
   setInterval(() => {
     document.querySelectorAll("[data-ends]").forEach((el) => {
